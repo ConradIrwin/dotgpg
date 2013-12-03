@@ -1,0 +1,26 @@
+#!/usr/bin/env ruby
+
+require "thor"
+
+class DotenvGpg < Thor
+
+  desc "init [DIRECTORY]", "create a new dotenv-gpg directory"
+  def init(directory=".")
+
+  end
+
+  desc "edit [FILE]", "edit a gpg-encrypted file"
+  def edit(file="production.env")
+
+  end
+
+  desc "cat [FILE]", "cat a gpg-encrypted file"
+  def cat(file="production.env")
+    exec "gpg", "--decrypt", file
+  end
+
+  desc "user [KEY]", "add a public key to the directory"
+  def user(file="/dev/stdin")
+
+  end
+end
