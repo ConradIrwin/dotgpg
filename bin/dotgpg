@@ -1,0 +1,219 @@
+#!/usr/bin/env ruby
+require "thor"
+require "dotgpg"
+require "pathname"
+require 'shellwords'
+
+class Dotgpg
+  class Cli < Thor
+    include Thor::Actions
+
+    class_option "help", type: :boolean, desc: "Show help"
+
+    desc "init [DIRECTORY]", "create a new dotgpg directory"
+    option :"new-key", type: :boolean, desc: "Force creating a new key", aliases: ["-n"], default: false
+    option :email, type: :string, desc: "Use a specific email address", aliases: ["-e"]
+    def init(directory=".")
+      return if helped?
+      self.dir = directory
+      key = keys.secret_key(options[:email], options[:"new-key"])
+
+      empty_directory! ".gpg"
+      add_active_key! key
+    end
+
+    desc "key", "export your public key"
+    option :"new-key", type: :boolean, desc: "Force creating a new key", aliases: ["-n"], default: false
+    option :email, type: :string, desc: "Use a specific email address", aliases: ["-e"]
+    def key
+      return if helped?
+
+      key = keys.secret_key(options[:email], options[:"new-key"])
+
+      puts key.export(armor: true).to_s
+    end
+
+    desc "add [PUBLIC_KEY]", "add a user's public key"
+    option :force, type: :boolean, desc: "Overwrite an existing key with the same email address"
+    def add(file=nil)
+
+      if file.nil?
+        if $stdin.tty?
+          $stderr.puts "Waiting for you to paste a public key"
+          key = keys.import($stdin)
+        else
+          key = keys.import($stdin)
+          $stdin.reopen "/dev/tty"
+        end
+      else
+        key = keys.import(File.open(file))
+      end
+
+      unless key
+        say_status "invalid key", file || "STDIN", :red
+        exit 1
+      end
+      add_active_key! key
+
+      reencrypt_files dir.all_encrypted_files
+    end
+
+    desc "rm KEY", "remove a user"
+    option :force, type: :boolean, desc: "Ignore removal of keys that don't exist"
+    def rm(key)
+
+      key = keys.import(file)
+
+      dir.remove_key(key)
+      reencrypt_files dir.all_encrypted_files
+    end
+
+    desc "cat FILES...", "decrypt and print files"
+    def cat(*files)
+      ensure_dotgpg!
+      output = GPGME::Data.new($stdout)
+
+      files.each do |f|
+        begin
+          ctx.decrypt GPGME::Data.new(File.open(f)), output
+        rescue Errno, GPGME::Error::NoData => e
+          $stderr.puts "#{f}: #{e.message}"
+        end
+      end
+    rescue GPGME::Error::BadPassphrase => e
+      $stderr.puts e.message
+    end
+
+    desc "edit FILES...", "edit and re-encrypt files"
+    def edit(*files)
+      ensure_dotgpg!
+
+      reencrypt_files files do |tempfiles|
+        to_edit = tempfiles.values.map do |t|
+          Shellwords.escape(t.path)
+        end
+
+        system "#{ENV["EDITOR"]} #{to_edit.join(" ")}"
+        unless $?.success?
+          $stderr.puts "Problem with editor. Not saving changes"
+          exit 1
+        end
+      end
+    end
+
+    private
+
+    # TODO: It'd be nice if we weren't storing the user's password
+    # in RAM, but I couldn't find a multi-decrypt method in GPGME.
+    def passfunc(hook, uid_hint, passphrase_info, prev_was_bad, fd)
+      if !@passphrase || prev_was_bad != 0
+        uid_hint = $1 if uid_hint =~ /<(.*)>/
+        $stderr.write("GPG passphrase for #{uid_hint}: ")
+        $stderr.flush
+        begin
+          system('stty -echo')
+          @passphrase = $stdin.readline.strip
+        ensure
+          system('stty echo')
+        end
+        $stderr.puts
+      end
+
+      io = IO.for_fd(fd, 'w')
+      io.puts(@passphrase)
+      io.flush
+    end
+
+    def ctx
+      @ctx ||= GPGME::Ctx.new(
+        armor: true,
+        passphrase_callback: method(:passfunc)
+      )
+    end
+
+    def reencrypt_files(files, &block)
+      tempfiles = {}
+
+      files.uniq.each do |f|
+        begin
+          temp = Tempfile.new([File.basename(f), ".sh"])
+          tempfiles[f] = temp
+          if File.exist? f
+            ctx.decrypt GPGME::Data.new(File.open(f)), GPGME::Data.new(temp)
+          end
+          temp.flush
+          temp.close(false)
+        rescue Errno, GPGME::Error::NoData => e
+          $stderr.puts "#{f}: #{e.message}"
+        end
+      end
+
+      yield tempfiles if block_given?
+
+      files.uniq.each do |f|
+        puts keys.known_keys
+        input = GPGME::Data.new(File.read(tempfiles[f].path))
+        ctx.encrypt keys.known_keys, input, GPGME::Data.new(File.open(f, "w")), GPGME::ENCRYPT_ALWAYS_TRUST
+        say_status "encrypted", f
+      end
+
+    rescue GPGME::Error::BadPassphrase => e
+      $stderr.puts e.message
+
+    ensure
+      tempfiles.values.map do |t|
+        t.close(true)
+      end
+    end
+
+    def dir
+      @dir ||= Dotgpg::Dir.new(File.absolute_path(Dir.pwd))
+    end
+
+    def dir=(dir)
+      @dir = Dotgpg::Dir.new(File.absolute_path(dir))
+    end
+
+    def keys
+      Dotgpg::Keys.new(dir)
+    end
+
+    def helped?
+      if options[:help]
+        invoke :help, @_invocations[self.class]
+        true
+      end
+    end
+
+    def empty_directory!(dest)
+      full = dir.join(dest)
+      if full.exist?
+        say_status "already exists", full, :red
+        exit 1
+      end
+      say_status "creating", full
+      FileUtils.mkdir_p(full)
+    end
+
+    def add_active_key!(key)
+      ensure_dotgpg!
+      if dir.has_key?(key)
+        say_status "already exists", dir.key_path(key), :red
+        exit 1
+      end
+
+      say_status "adding", dir.key_path(key)
+      dir.add_key(key)
+    end
+
+    def ensure_dotgpg!
+      unless dir.dotgpg?
+        say_status "no such directory", dir.dotgpg, :red
+        puts "You may want to run `dotgpg init` to create it."
+        exit 1
+      end
+    end
+  end
+end
+
+Dotgpg::Cli.start(ARGV)

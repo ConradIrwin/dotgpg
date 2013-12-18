@@ -12,6 +12,11 @@ Gem::Specification.new do |gem|
   gem.license = 'MIT'
 
   gem.add_dependency 'thor'
+  gem.add_dependency 'gpgme'
 
+  gem.add_development_dependency 'pry'
+  gem.add_development_dependency 'pry-stack_explorer'
+
+  gem.executables = 'gpgenv'
   gem.files = `git ls-files`.split("\n")
 end
