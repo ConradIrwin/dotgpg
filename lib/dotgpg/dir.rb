@@ -1,31 +1,94 @@
 class Dotgpg
-  class Dir < Pathname
+  class Dir
 
-    def key_path(key)
-      dotgpg + key.email
+    def initialize(path)
+      @dir = Pathname.new(File.absolute_path(path))
     end
 
-    def has_key?(key)
-      File.exist? key_path(key)
+    # Get the keys currently associated with this directory.
+    #
+    # @return [Array<GPGME::Key>]
+    def known_keys
+      dotgpg.each_child.map do |key_file|
+        Dotgpg.read_key key_file.open
+      end
     end
 
-    def add_key(key)
-      File.write key_path(key), key.export(armor: true).to_s
+    # Decrypt the contents of path and write to output.
+    #
+    # The path should be absolute, and may point to outside
+    # this directory, though that is not recommended.
+    #
+    # @param [Pathname] path  The file to decrypt
+    # @param [IO] output  The IO to write to
+    # @return [Boolean]  false if decryption failed for an understandable reason
+    def decrypt(path, output)
+      Dotgpg.decrypt File.open(path), output
+      true
+    rescue GPGME::Error::NoData, SystemCallError => e
+      Dotgpg.warn path, e
+      false
     end
 
-    def remove_key(key)
-      File.unlink key_path(key)
+    # Encrypt the input and write it to the given path.
+    #
+    # The path should be absolute, and may point to outside
+    # this directory, though that is not recommended.
+    #
+    # @param [Pathname] path  The desired destination
+    # @param [IO] input  The IO containing the plaintext
+    # @return [Boolean]  false if encryption failed for an understandable reason
+    def encrypt(path, input)
+      File.open(path, "w") do |f|
+        Dotgpg.encrypt known_keys, input, f
+      end
+      true
+    rescue SystemCallError => e
+      Dotgpg.warn path, e
+      false
     end
 
-    def dotgpg
-      self + ".gpg"
+    # Re-encrypts a set of files with the currently known keys.
+    #
+    # If a block is provided, it can be used to edit the files in
+    # their temporary un-encrypted state.
+    #
+    # @param [Array<Pathname>] files  the files to re-encrypt
+    # @yieldparam [Hash<Pathname, Tempfile>]  the unencrypted files for each param
+    def reencrypt(files, &block)
+      tempfiles = {}
+
+      files.uniq.each do |f|
+        temp = Tempfile.new([File.basename(f), ".sh"])
+        tempfiles[f] = temp
+        decrypt f, temp if File.exist? f
+        temp.flush
+        temp.close(false)
+      end
+
+      yield tempfiles if block_given?
+
+      files.uniq.each do |f|
+        encrypt f, File.open(tempfiles[f].path)
+      end
+
+      nil
+    ensure
+      tempfiles.values.each do |temp|
+        temp.close(true)
+      end
     end
 
-    def dotgpg?
-      dotgpg.directory?
-    end
-
-    def all_encrypted_files(dir=self)
+    # List every GPG-encrypted file in a directory recursively.
+    #
+    # Assumes the files are armored (non-armored files are hard to detect and
+    # dotgpg itself always armors)
+    #
+    # This is used to decide which files to re-encrypt when adding a user.
+    #
+    # @param [Pathname] dir
+    # @return [Array<Pathname>]
+    def all_encrypted_files(dir=@dir)
       results = []
       dir.each_child do |child|
         if child.directory?
@@ -40,6 +103,58 @@ class Dotgpg
       end
 
       results
+    end
+
+    # Does this directory includea key for the given user yet?
+    #
+    # @param [GPGME::Key]
+    # @return [Boolean]
+    def has_key?(key)
+      File.exist? key_path(key)
+    end
+
+    # Add a given key to the directory
+    #
+    # Re-encrypts all files to add the new key as a recipient.
+    #
+    # @param [GPGME::Key]
+    def add_key(key)
+      File.write key_path(key), key.export(armor: true).to_s
+      reencrypt all_encrypted_files
+    end
+
+    # Remove a given key from a directory
+    #
+    # Re-encrypts all files so that the removed key no-longer has access.
+    #
+    # @param [GPGME::Key]
+    def remove_key(key)
+      File.unlink key_path(key)
+      reencrypt all_encrypted_files
+    end
+
+    # The path at which a key should be stored
+    #
+    # (i.e. .gpg/me@cirw.in)
+    #
+    # @param [GPGME::Key]
+    # @return [Pathname]
+    def key_path(key)
+      dotgpg + key.email
+    end
+
+    # The .gpg directory
+    #
+    # @return [Pathname]
+    def dotgpg
+      @dir + ".gpg"
+    end
+
+    # Does the .gpg directory exist?
+    #
+    # @return [Boolean]
+    def dotgpg?
+      dotgpg.directory?
     end
   end
 end

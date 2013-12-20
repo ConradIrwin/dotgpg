@@ -1,7 +1,8 @@
 class Dotgpg
-  class Keys
-    def initialize(path=nil)
-      @path = path
+  class Key
+
+    def self.secret_key
+      new.secret_key
     end
 
     def secret_key(email=nil, force_new=nil)
@@ -11,20 +12,6 @@ class Dotgpg
       else
         create_new_key email
       end
-    end
-
-    def import(file)
-      GPGME::Key.import(file).imports.map do |import|
-        GPGME::Key.find(:public, import.fingerprint)
-      end.flatten.first
-    end
-
-    def known_keys
-      @known_keys ||= @path.dotgpg.each_child.reject(&:directory?).map do |key_file|
-        GPGME::Key.import(key_file.open).imports.map do |import|
-          GPGME::Key.find(:public, import.fingerprint)
-        end
-      end.flatten
     end
 
     private
@@ -84,7 +71,7 @@ EOF
     def get_email
       email = ""
       until email =~ /@/
-        email = read_input "Email address: "
+        email = Dotgpg.read_input "Email address: "
       end
       email
     end
@@ -93,26 +80,13 @@ EOF
       passphrase = confirmation = nil
       until passphrase && passphrase == confirmation
         until passphrase && passphrase.length > 0
-          passphrase = read_passphrase("Passphrase: ")
+          passphrase = Dotgpg.read_passphrase("Passphrase: ")
         end
         until confirmation && confirmation.length > 0
-          confirmation = read_passphrase("Passphrase confirmation: ")
+          confirmation = Dotgpg.read_passphrase("Passphrase confirmation: ")
         end
       end
       passphrase
-    end
-
-    def read_passphrase(prompt)
-      `stty -echo`
-      read_input prompt
-    ensure
-      print "\n"
-      `stty echo`
-    end
-
-    def read_input(prompt)
-      print prompt
-      $stdin.readline.strip
     end
 
     def existing_private_keys
