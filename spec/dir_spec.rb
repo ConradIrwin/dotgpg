@@ -4,6 +4,39 @@ describe Dotgpg::Dir do
   before do
     @dir = Dotgpg::Dir.new($basic)
   end
+
+  describe ".closest" do
+    it "should find the current directory" do
+      Dir.chdir $basic do
+        assert_equal @dir, Dotgpg::Dir.closest(".")
+      end
+    end
+
+    it "should find a specified directory" do
+      assert_equal @dir, Dotgpg::Dir.closest($basic)
+    end
+
+    it "should find the directory containing the given file" do
+      assert_equal @dir, Dotgpg::Dir.closest($basic + "a")
+    end
+
+    it "should find the ancestor of the directory containing the given file" do
+      assert_equal @dir, Dotgpg::Dir.closest($basic + "b" + "c")
+    end
+
+    it "should not find a directory that does not exist" do
+      assert_nil Dotgpg::Dir.closest("/tmp")
+    end
+
+    it "should not find a directory that only some of the files are in" do
+      assert_equal nil, Dotgpg::Dir.closest($basic, "/tmp")
+    end
+
+    it "should find a directory that all of the files are in" do
+      assert_equal @dir, Dotgpg::Dir.closest($basic, $basic + "a", $basic + "b" + "c")
+    end
+  end
+
   describe "dotgpg?" do
     it 'should be true in a directory managed by dotgpg' do
       assert_equal true, @dir.dotgpg?
@@ -101,6 +134,11 @@ describe Dotgpg::Dir do
       Dotgpg.passphrase = 'test'
     end
 
+    after do
+      FileUtils.rm_f $basic + "test-armor"
+      FileUtils.rm_f $basic + "test-recipients"
+    end
+
     it "should armor files" do
       @dir.encrypt $basic + "test-armor", 'test'
       assert_match(/-----BEGIN PGP MESSAGE-----/, File.read($basic + "test-armor"))
@@ -133,6 +171,16 @@ describe Dotgpg::Dir do
       @dir.add_key add2
       assert_contains_keyid add2.subkeys.last.keyid, File.read($basic + "a")
     end
+
+    it "should not add the key if re-encryption fails" do
+      Dotgpg.passphrase = 'wrong'
+      add3 = Dotgpg.read_key $fixture + "add3.key"
+      assert_raises GPGME::Error::BadPassphrase do
+        @dir.add_key add3
+      end
+      refute $basic.join(".gpg", "add3@example.com").exist?
+      refute_contains_keyid add3.subkeys.last.keyid, File.read($basic + "a")
+    end
   end
 
   describe "remove_key" do
@@ -152,6 +200,15 @@ describe Dotgpg::Dir do
       assert_contains_keyid removed2.subkeys.last.keyid, File.read($basic + "a")
       @dir.remove_key removed2
       refute_contains_keyid removed2.subkeys.last.keyid, File.read($basic + "a")
+    end
+
+    it "should not remove the key if re-encryption fails" do
+      Dotgpg.passphrase = 'wrong'
+      removed3 = Dotgpg.read_key $basic.join(".gpg", "removed3@example.com")
+      assert_raises GPGME::Error::BadPassphrase do
+        @dir.add_key removed3
+      end
+      assert $basic.join(".gpg", "removed3@example.com").exist?
     end
   end
 end

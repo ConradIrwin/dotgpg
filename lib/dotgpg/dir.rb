@@ -1,8 +1,38 @@
 class Dotgpg
   class Dir
 
+    attr_reader :path
+
+    # Find the Dotgpg::Dir that contains the given path.
+    #
+    # If multiple are given only returns the directory if it contains all
+    # paths.
+    #
+    # If no path is given, find the Dotgpg::Dir that contains the current
+    # working directory.
+    #
+    # @param [*Array<String>] paths
+    # @return {nil|[Dotgpg::Dir]}
+    def self.closest(path=".", *others)
+      path = Pathname.new(File.absolute_path(path)).cleanpath
+
+      result = path.ascend do |parent|
+                maybe = Dotgpg::Dir.new(parent)
+                break maybe if maybe.dotgpg?
+              end
+
+      if others.any? && closest(*others) != result
+        nil
+      else
+        result
+      end
+    end
+
+    # Open a Dotgpg::Dir
+    #
+    # @param [String] path  The location of the directory
     def initialize(path)
-      @dir = Pathname.new(File.absolute_path(path))
+      @path = Pathname.new(File.absolute_path(path)).cleanpath
     end
 
     # Get the keys currently associated with this directory.
@@ -61,15 +91,18 @@ class Dotgpg
       files.uniq.each do |f|
         temp = Tempfile.new([File.basename(f), ".sh"])
         tempfiles[f] = temp
-        decrypt f, temp if File.exist? f
+        if File.exist? f
+          decrypted =  decrypt f, temp
+          tempfiles.delete f unless decrypted
+        end
         temp.flush
         temp.close(false)
       end
 
       yield tempfiles if block_given?
 
-      files.uniq.each do |f|
-        encrypt f, File.open(tempfiles[f].path)
+      tempfiles.each_pair do |f, temp|
+        encrypt f, File.open(temp.path)
       end
 
       nil
@@ -88,7 +121,7 @@ class Dotgpg
     #
     # @param [Pathname] dir
     # @return [Array<Pathname>]
-    def all_encrypted_files(dir=@dir)
+    def all_encrypted_files(dir=path)
       results = []
       dir.each_child do |child|
         if child.directory?
@@ -119,8 +152,9 @@ class Dotgpg
     #
     # @param [GPGME::Key]
     def add_key(key)
-      File.write key_path(key), key.export(armor: true).to_s
-      reencrypt all_encrypted_files
+      reencrypt all_encrypted_files do
+        File.write key_path(key), key.export(armor: true).to_s
+      end
     end
 
     # Remove a given key from a directory
@@ -129,8 +163,9 @@ class Dotgpg
     #
     # @param [GPGME::Key]
     def remove_key(key)
-      File.unlink key_path(key)
-      reencrypt all_encrypted_files
+      reencrypt all_encrypted_files do
+        key_path(key).unlink
+      end
     end
 
     # The path at which a key should be stored
@@ -147,7 +182,7 @@ class Dotgpg
     #
     # @return [Pathname]
     def dotgpg
-      @dir + ".gpg"
+      path + ".gpg"
     end
 
     # Does the .gpg directory exist?
@@ -155,6 +190,10 @@ class Dotgpg
     # @return [Boolean]
     def dotgpg?
       dotgpg.directory?
+    end
+
+    def ==(other)
+      Dotgpg::Dir === other && other.path == self.path
     end
   end
 end

@@ -1,5 +1,7 @@
 task :test do
-  system "ruby spec/*_spec.rb"
+  Dir['./spec/**/*_spec.rb'].each do |f|
+    require f
+  end
 end
 
 task :default => :test

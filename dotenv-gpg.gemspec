@@ -17,6 +17,6 @@ Gem::Specification.new do |gem|
   gem.add_development_dependency 'pry'
   gem.add_development_dependency 'pry-stack_explorer'
 
-  gem.executables = 'gpgenv'
+  gem.executables = 'dotgpg'
   gem.files = `git ls-files`.split("\n")
 end

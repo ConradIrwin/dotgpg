@@ -2,137 +2,192 @@ class Dotgpg
   class Cli < Thor
     include Thor::Actions
 
-    class_option "help", type: :boolean, desc: "Show help"
+    class_option "help", type: :boolean, desc: "Show help", aliases: ["-h"]
 
     desc "init [DIRECTORY]", "create a new dotgpg directory"
-    option :"new-key", type: :boolean, desc: "Force creating a new key", aliases: ["-n"], default: false
+    option :"new-key", type: :boolean, desc: "Force creating a new key", aliases: ["-n"]
     option :email, type: :string, desc: "Use a specific email address", aliases: ["-e"]
     def init(directory=".")
       return if helped?
-      self.dir = directory
+
+      dir = Dotgpg::Dir.new directory
+
+      if dir.dotgpg.exist?
+        fail "#{directory}/.gpg already exists"
+      end
+
       key = Dotgpg::Key.secret_key(options[:email], options[:"new-key"])
 
-      empty_directory! ".gpg"
-      add_active_key! key
+      info "Initializing new dotgpg directory"
+      info "  #{directory}/README.md"
+      info "  #{directory}/.gpg/#{key.email}"
+
+      FileUtils.mkdir_p(dir.dotgpg)
+      FileUtils.cp Pathname.new(__FILE__).dirname.join("template/README.md"), dir.path.join("README.md")
+      dir.add_key(key)
     end
 
-    desc "key", "export your public key"
-    option :"new-key", type: :boolean, desc: "Force creating a new key", aliases: ["-n"], default: false
+    desc "key", "export your GPG public key in a format that `dotgpg add` will understand"
+    option :"new-key", type: :boolean, desc: "Force creating a new key", aliases: ["-n"]
     option :email, type: :string, desc: "Use a specific email address", aliases: ["-e"]
     def key
       return if helped?
 
       key = Dotgpg::Key.secret_key(options[:email], options[:"new-key"])
-
-      puts key.export(armor: true).to_s
+      $stdout.print key.export(armor: true).to_s
     end
 
-    desc "add [PUBLIC_KEY]", "add a user's public key"
-    option :force, type: :boolean, desc: "Overwrite an existing key with the same email address"
+    desc "add [PUBLIC_KEY]", "add a user's public key", aliases: ["-f"]
+    option :force, type: :boolean, desc: "Overwrite an existing key with the same email address", aliases: ["-f"]
     def add(file=nil)
+      return if helped?
 
-      if file.nil?
-        if $stdin.tty?
-          $stderr.puts "Waiting for you to paste a public key"
-          key = Dotgpg.read_key($stdin)
-        else
-          key = Dotgpg.read_key($stdin)
-          $stdin.reopen "/dev/tty"
-        end
-      else
-        key = Dotgpg.read_key(File.open(file))
+      dir = Dotgpg::Dir.closest
+      fail "not in a dotgpg directory" unless dir
+
+      key = read_key_file_for_add(file)
+      fail "#{file || "<stdin>"}: not a valid GPG key" unless key
+
+      if dir.has_key?(key) && !options[:force]
+        fail "#{dir.key_path(key)}: already exists"
       end
 
-      unless key
-        say_status "invalid key", file || "STDIN", :red
-        exit 1
-      end
-      add_active_key! key
+      info "Adding #{key.name} to #{dir.path}"
+      info "  #{dir.key_path(key).relative_path_from(dir.path)}"
+
+      dir.add_key(key)
+    rescue GPGME::Error::BadPassphrase => e
+      fail e.message
     end
 
-    desc "rm KEY", "remove a user"
-    option :force, type: :boolean, desc: "Ignore removal of keys that don't exist"
-    def rm(key)
+    desc "rm KEY", "remove a user's public key"
+    option :force, type: :boolean, desc: "Succeed silently if the key doesn't exist or is your own secret key", aliases: ["-f"]
+    def rm(file=nil)
+      return if helped?(file.nil?)
 
-      key = Dotgpg.read_key(file)
+      dir = Dotgpg::Dir.closest
+      fail "not in a dotgpg directory" unless dir
 
-      dir.remove_key(key)
+      key = read_key_file_for_rm(file)
+      fail "#{file}: not a valid GPG key" if !key && !options[:force]
+
+      if key
+        if GPGME::Key.find(:secret).include?(key) && !options[:force]
+          fail "#{file}: refusing to remove your own secret key"
+        end
+
+        info "Removing #{key.name} from #{dir.path}"
+        info "D #{dir.key_path(key).relative_path_from(dir.path)}"
+        dir.remove_key(key)
+      end
+    rescue GPGME::Error::BadPassphrase => e
+      fail e.message
     end
 
     desc "cat FILES...", "decrypt and print files"
     def cat(*files)
-      ensure_dotgpg!
+      return if helped?
+
+      dir = Dotgpg::Dir.closest(*files)
+      fail "not in a dotgpg directory" unless dir
 
       files.each do |f|
         dir.decrypt f, $stdout
       end
     rescue GPGME::Error::BadPassphrase => e
-      $stderr.puts e.message
+      fail e.message
     end
 
     desc "edit FILES...", "edit and re-encrypt files"
     def edit(*files)
-      ensure_dotgpg!
+      return if helped?
+
+      dir = Dotgpg::Dir.closest(*files)
+      fail "not in a dotgpg directory" unless dir
 
       dir.reencrypt files do |tempfiles|
-        to_edit = tempfiles.values.map do |temp|
-          Shellwords.escape(temp.path)
-        end
+        if tempfiles.any?
+          to_edit = tempfiles.values.map do |temp|
+            Shellwords.escape(temp.path)
+          end
 
-        system "#{ENV["EDITOR"]} #{to_edit.join(" ")}"
-        unless $?.success?
-          $stderr.puts "Problem with editor. Not saving changes"
-          exit 1
+          system "#{Dotgpg.editor} #{to_edit.join(" ")}"
+          fail "Problem with editor. Not saving changes" unless $?.success?
         end
       end
 
     rescue GPGME::Error::BadPassphrase => e
-      $stderr.puts e.message
+      fail e.message
     end
 
     private
 
-    def dir
-      @dir ||= Dotgpg::Dir.new(File.absolute_path(Dir.pwd))
-    end
-
-    def dir=(dir)
-      @dir = Dotgpg::Dir.new(File.absolute_path(dir))
-    end
-
-    def helped?
-      if options[:help]
+    # If the global --help or -h flag is passed, show help.
+    #
+    # Should be invoked at the start of every command.
+    #
+    # @param [Boolean] force  force showing help
+    # @return [Boolean]  help was shown
+    def helped?(force=false)
+      if options[:help] || force
         invoke :help, @_invocations[self.class]
         true
       end
     end
 
-    def empty_directory!(dest)
-      full = dir.join(dest)
-      if full.exist?
-        say_status "already exists", full, :red
-        exit 1
+    # Print an informational message in interactive mode.
+    #
+    # @param [String] msg  The message to show
+    def info(msg)
+      if Dotgpg.interactive?
+        $stdout.puts msg
       end
-      say_status "creating", full
-      FileUtils.mkdir_p(full)
     end
 
-    def add_active_key!(key)
-      ensure_dotgpg!
-      if dir.has_key?(key)
-        say_status "already exists", dir.key_path(key), :red
+    # Fail with a message.
+    #
+    # In interactive mode, exits the program with status 1.
+    # Otherwise raises a Dotgpg::Failure.
+    #
+    # @param [String] msg
+    def fail(msg)
+      if Dotgpg.interactive?
+        $stderr.puts msg
         exit 1
+      else
+        raise Dotgpg::Failure, msg, caller[1]
       end
-
-      say_status "adding", dir.key_path(key)
-      dir.add_key(key)
     end
 
-    def ensure_dotgpg!
-      unless dir.dotgpg?
-        say_status "no such directory", dir.dotgpg, :red
-        puts "You may want to run `dotgpg init` to create it."
-        exit 1
+    # Read a key from a given file or stdin.
+    #
+    # @param [nil, String]  the file the user specified.
+    # @return [nil, GPGME::Key]
+    def read_key_file_for_add(file)
+      if file.nil?
+        if $stdin.tty?
+          info "Paste a public key, then hit <ctrl+d> twice."
+          key = Dotgpg.read_key($stdin)
+        else
+          key = Dotgpg.read_key($stdin)
+          $stdin.reopen "/dev/tty"
+        end
+      elsif File.readable?(file)
+        key = Dotgpg.read_key(File.open(file))
+      end
+    end
+
+    # Read a key from a given file or from the .gpg directory
+    #
+    # @param [String]  the file the user specified
+    # @return [nil, GPGME::Key]
+    def read_key_file_for_rm(file)
+      if !File.exist?(file) && File.exist?(".gpg/" + file)
+        file = ".gpg/" + file
+      end
+
+      if File.readable?(file)
+        Dotgpg.read_key(File.open(file))
       end
     end
   end

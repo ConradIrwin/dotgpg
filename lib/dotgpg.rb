@@ -1,14 +1,18 @@
 require 'pathname'
 require 'fileutils'
 require 'tempfile'
+require 'shellwords'
 
 require 'gpgme'
 require 'thor'
 
 require "dotgpg/key.rb"
 require "dotgpg/dir.rb"
+require "dotgpg/cli.rb"
 
 class Dotgpg
+
+  class Failure < RuntimeError; end
 
   def self.read_key(file)
     GPGME::Key.import(file).imports.map do |import|
@@ -22,6 +26,29 @@ class Dotgpg
 
   def self.encrypt(keys, input, output)
     ctx.encrypt keys, GPGME::Data.new(input), GPGME::Data.new(output), GPGME::ENCRYPT_ALWAYS_TRUST
+  end
+
+  # This method copied directly from Pry and is
+  # Copyright (c) 2013 John Mair (banisterfiend)
+  # https://github.com/pry/pry/blob/master/LICENSE
+  def self.editor
+    configured = ENV["VISUAL"] || ENV["EDITOR"] || guess_editor
+    case configured
+    when /^mate/, /^subl/
+      configured << " -w"
+    when /^[gm]vim/
+      configured << " --nofork"
+    when /^jedit/
+      configured << " -wait"
+    end
+
+    configured
+  end
+
+  def self.guess_editor
+    %w(subl sublime-text sensible-editor editor mate nano vim vi open).detect do |editor|
+      system("which #{editor} > /dev/null 2>&1")
+    end
   end
 
   def self.read_input(prompt)
@@ -40,6 +67,12 @@ class Dotgpg
 
   def self.interactive=(bool)
     @interactive = bool
+    if interactive?
+      # get rid of stack trace on <ctrl-c>
+      trap(:INT){ exit 2 }
+    else
+      trap(:INT, "DEFAULT")
+    end
   end
 
   def self.interactive?
@@ -56,6 +89,7 @@ class Dotgpg
     if interactive?
       $stderr.puts "#{context}: #{error.message}"
     else
+      puts "raising warning"
       raise error
     end
   end

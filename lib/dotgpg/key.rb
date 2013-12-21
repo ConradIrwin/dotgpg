@@ -1,8 +1,8 @@
 class Dotgpg
   class Key
 
-    def self.secret_key
-      new.secret_key
+    def self.secret_key(email=nil, force_new=nil)
+      new.secret_key(email, force_new)
     end
 
     def secret_key(email=nil, force_new=nil)
