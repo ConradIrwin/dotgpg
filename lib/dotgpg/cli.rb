@@ -173,7 +173,7 @@ class Dotgpg
           $stdin.reopen "/dev/tty"
         end
       elsif File.readable?(file)
-        key = Dotgpg.read_key(File.open(file))
+        key = Dotgpg.read_key(File.read(file))
       end
     end
 
@@ -187,7 +187,7 @@ class Dotgpg
       end
 
       if File.readable?(file)
-        Dotgpg.read_key(File.open(file))
+        Dotgpg.read_key(File.read(file))
       end
     end
   end

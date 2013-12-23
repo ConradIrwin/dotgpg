@@ -53,7 +53,9 @@ class Dotgpg
     # @param [IO] output  The IO to write to
     # @return [Boolean]  false if decryption failed for an understandable reason
     def decrypt(path, output)
-      Dotgpg.decrypt File.open(path), output
+      File.open(path) do |f|
+        Dotgpg.decrypt f, output
+      end
       true
     rescue GPGME::Error::NoData, SystemCallError => e
       Dotgpg.warn path, e
@@ -102,7 +104,9 @@ class Dotgpg
       yield tempfiles if block_given?
 
       tempfiles.each_pair do |f, temp|
-        encrypt f, File.open(temp.path)
+        temp.open
+        temp.seek(0)
+        encrypt f, temp
       end
 
       nil
