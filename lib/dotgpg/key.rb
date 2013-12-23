@@ -1,6 +1,12 @@
 class Dotgpg
   class Key
 
+    def self.read(file)
+      GPGME::Key.import(file).imports.map do |import|
+        GPGME::Key.find(:public, import.fingerprint)
+      end.flatten.first
+    end
+
     def self.secret_key(email=nil, force_new=nil)
       new.secret_key(email, force_new)
     end

@@ -40,7 +40,7 @@ class Dotgpg
     # @return [Array<GPGME::Key>]
     def known_keys
       dotgpg.each_child.map do |key_file|
-        Dotgpg.read_key key_file.open
+        Dotgpg::Key.read key_file.open
       end
     end
 
@@ -54,10 +54,21 @@ class Dotgpg
     # @return [Boolean]  false if decryption failed for an understandable reason
     def decrypt(path, output)
       File.open(path) do |f|
-        Dotgpg.decrypt f, output
+        signature = false
+        temp = GPGME::Crypto.new.decrypt f, passphrase_callback: Dotgpg.method(:passfunc) do |s|
+          signature = s
+        end
+
+        unless ENV["DOTGPG_ALLOW_INJECTION_ATTACK"]
+          raise InvalidSignature, "file was not signed" unless signature
+          raise InvalidSignature, "signature was incorrect" unless signature.valid?
+          raise InvalidSignature, "signed by a stranger" unless known_keys.include?(signature.key)
+        end
+
+        output.write temp.read
       end
       true
-    rescue GPGME::Error::NoData, SystemCallError => e
+    rescue GPGME::Error::NoData, GPGME::Error::DecryptFailed, SystemCallError => e
       Dotgpg.warn path, e
       false
     end
@@ -72,7 +83,13 @@ class Dotgpg
     # @return [Boolean]  false if encryption failed for an understandable reason
     def encrypt(path, input)
       File.open(path, "w") do |f|
-        Dotgpg.encrypt known_keys, input, f
+        GPGME::Crypto.new.encrypt input, output: f,
+            recipients: known_keys,
+            armor: true,
+            always_trust: true,
+            sign: true,
+            passphrase_callback: Dotgpg.method(:passfunc),
+            signers: known_keys.detect{ |key| GPGME::Key.find(:secret).include?(key) }
       end
       true
     rescue SystemCallError => e

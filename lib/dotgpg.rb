@@ -13,20 +13,7 @@ require "dotgpg/cli.rb"
 class Dotgpg
 
   class Failure < RuntimeError; end
-
-  def self.read_key(file)
-    GPGME::Key.import(file).imports.map do |import|
-      GPGME::Key.find(:public, import.fingerprint)
-    end.flatten.first
-  end
-
-  def self.decrypt(input, output)
-    ctx.decrypt GPGME::Data.new(input), GPGME::Data.new(output)
-  end
-
-  def self.encrypt(keys, input, output)
-    ctx.encrypt keys, GPGME::Data.new(input), GPGME::Data.new(output), GPGME::ENCRYPT_ALWAYS_TRUST
-  end
+  class InvalidSignature < RuntimeError; end
 
   # This method copied directly from Pry and is
   # Copyright (c) 2013 John Mair (banisterfiend)
@@ -94,27 +81,16 @@ class Dotgpg
     end
   end
 
-  class << self
-    private
-
-    def passfunc(hook, uid_hint, passphrase_info, prev_was_bad, fd)
-      if interactive? && (!@passphrase || prev_was_bad != 0)
-        uid_hint = $1 if uid_hint =~ /<(.*)>/
-        @passphrase = read_passphrase "GPG passphrase for #{uid_hint}: "
-      elsif !@passphrase
-        raise "You must set Dotgpg.password or Dotgpg.interactive"
-      end
-
-      io = IO.for_fd(fd, 'w')
-      io.puts(@passphrase)
-      io.flush
+  def self.passfunc(hook, uid_hint, passphrase_info, prev_was_bad, fd)
+    if interactive? && (!@passphrase || prev_was_bad != 0)
+      uid_hint = $1 if uid_hint =~ /<(.*)>/
+      @passphrase = read_passphrase "GPG passphrase for #{uid_hint}: "
+    elsif !@passphrase
+      raise "You must set Dotgpg.password or Dotgpg.interactive"
     end
 
-    def ctx
-      @ctx ||= GPGME::Ctx.new(
-        armor: true,
-        passphrase_callback: method(:passfunc)
-      )
-    end
+    io = IO.for_fd(fd, 'w')
+    io.puts(@passphrase)
+    io.flush
   end
 end

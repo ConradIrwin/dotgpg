@@ -159,14 +159,14 @@ describe Dotgpg::Dir do
     end
 
     it "should create the file in the .gpg directory" do
-      add1 = Dotgpg.read_key $fixture + "add1.key"
+      add1 = Dotgpg::Key.read $fixture + "add1.key"
       refute $basic.join(".gpg", "add1@example.com").exist?
       @dir.add_key add1
       assert $basic.join(".gpg", "add1@example.com").exist?
     end
 
     it "should add the key as a recipient on all the files" do
-      add2 = Dotgpg.read_key $fixture + "add2.key"
+      add2 = Dotgpg::Key.read $fixture + "add2.key"
       refute_contains_keyid add2.subkeys.last.keyid, File.read($basic + "a")
       @dir.add_key add2
       assert_contains_keyid add2.subkeys.last.keyid, File.read($basic + "a")
@@ -174,7 +174,7 @@ describe Dotgpg::Dir do
 
     it "should not add the key if re-encryption fails" do
       Dotgpg.passphrase = 'wrong'
-      add3 = Dotgpg.read_key $fixture + "add3.key"
+      add3 = Dotgpg::Key.read $fixture + "add3.key"
       assert_raises GPGME::Error::BadPassphrase do
         @dir.add_key add3
       end
@@ -189,14 +189,14 @@ describe Dotgpg::Dir do
     end
 
     it "should remove the file from the .gpg directory" do
-      removed1 = Dotgpg.read_key $basic.join(".gpg", "removed1@example.com")
+      removed1 = Dotgpg::Key.read $basic.join(".gpg", "removed1@example.com")
       assert $basic.join(".gpg", "removed1@example.com").exist?
       @dir.remove_key removed1
       refute $basic.join(".gpg", "removed1@example.com").exist?
     end
 
     it "should remove the key as a recipient from all the files" do
-      removed2 = Dotgpg.read_key $basic.join(".gpg", "removed2@example.com")
+      removed2 = Dotgpg::Key.read $basic.join(".gpg", "removed2@example.com")
       assert_contains_keyid removed2.subkeys.last.keyid, File.read($basic + "a")
       @dir.remove_key removed2
       refute_contains_keyid removed2.subkeys.last.keyid, File.read($basic + "a")
@@ -204,7 +204,7 @@ describe Dotgpg::Dir do
 
     it "should not remove the key if re-encryption fails" do
       Dotgpg.passphrase = 'wrong'
-      removed3 = Dotgpg.read_key $basic.join(".gpg", "removed3@example.com")
+      removed3 = Dotgpg::Key.read $basic.join(".gpg", "removed3@example.com")
       assert_raises GPGME::Error::BadPassphrase do
         @dir.add_key removed3
       end

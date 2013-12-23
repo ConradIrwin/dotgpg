@@ -66,7 +66,7 @@ describe Dotgpg::Cli do
       Dir.chdir @path do
         @dotgpg.invoke(:add, [key_path])
       end
-      assert Dotgpg::Dir.new(@path).has_key? Dotgpg.read_key(File.read(key_path))
+      assert Dotgpg::Dir.new(@path).has_key? Dotgpg::Key.read(File.read(key_path))
     end
 
     it "should abort if the current working directory is not dotgpg" do
@@ -120,14 +120,14 @@ describe Dotgpg::Cli do
       Dir.chdir @path do
         @dotgpg.invoke :rm, [".gpg/add1@example.com"]
       end
-      refute Dotgpg::Dir.new(@path).has_key? Dotgpg.read_key(File.read($fixture + "add1.key"))
+      refute Dotgpg::Dir.new(@path).has_key? Dotgpg::Key.read(File.read($fixture + "add1.key"))
     end
 
     it "should find the key by email" do
       Dir.chdir @path do
         @dotgpg.invoke :rm, ["add1@example.com"]
       end
-      refute Dotgpg::Dir.new(@path).has_key? Dotgpg.read_key(File.read($fixture + "add1.key"))
+      refute Dotgpg::Dir.new(@path).has_key? Dotgpg::Key.read(File.read($fixture + "add1.key"))
     end
 
     it "should abort if the key doesn't exist" do
@@ -153,7 +153,7 @@ describe Dotgpg::Cli do
     end
 
     it "should remove a secret key if --force is given" do
-      key = Dotgpg.read_key(File.read(@path + ".gpg" + "test@example.com"))
+      key = Dotgpg::Key.read(File.read(@path + ".gpg" + "test@example.com"))
       Dir.chdir @path do
         @dotgpg.invoke :rm, ["test@example.com"], force: true
       end
@@ -164,11 +164,11 @@ describe Dotgpg::Cli do
 
   describe "cat" do
     before do
+      Dotgpg.passphrase = 'test'
+
       @path = $fixture + rand.to_s.gsub(".", "")
       Dotgpg::Cli.new.invoke(:init, [@path.to_s])
       Dotgpg::Dir.new(@path).encrypt @path + "a", "Test\n"
-
-      Dotgpg.passphrase = 'test'
     end
 
     it "should cat an existing encrypted file" do
@@ -207,11 +207,12 @@ describe Dotgpg::Cli do
 
   describe "edit" do
     before do
+      Dotgpg.passphrase = 'test'
+
       @path = $fixture + rand.to_s.gsub(".", "")
       Dotgpg::Cli.new.invoke(:init, [@path.to_s])
       Dotgpg::Dir.new(@path).encrypt @path + "a", "Bad test\n"
 
-      Dotgpg.passphrase = 'test'
     end
 
     it "should let you edit an existing file" do

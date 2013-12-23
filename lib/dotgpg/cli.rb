@@ -167,13 +167,13 @@ class Dotgpg
       if file.nil?
         if $stdin.tty?
           info "Paste a public key, then hit <ctrl+d> twice."
-          key = Dotgpg.read_key($stdin)
+          key = Dotgpg::Key.read($stdin)
         else
-          key = Dotgpg.read_key($stdin)
+          key = Dotgpg::Key.read($stdin)
           $stdin.reopen "/dev/tty"
         end
       elsif File.readable?(file)
-        key = Dotgpg.read_key(File.read(file))
+        key = Dotgpg::Key.read(File.read(file))
       end
     end
 
@@ -187,7 +187,7 @@ class Dotgpg
       end
 
       if File.readable?(file)
-        Dotgpg.read_key(File.read(file))
+        Dotgpg::Key.read(File.read(file))
       end
     end
   end
