@@ -13,17 +13,19 @@ If you're a ruby developer, you know the drill. Either `gem install dotgpg` or a
 
 There are also instructions for [use without ruby](#use-without-ruby).
 
-### Mac OS X
+#### Mac OS X
 
 1. `brew install gpg`
 2. `sudo gem install dotgpg`
 
-### Ubuntu
+#### Ubuntu
 
 1. `sudo apt-get install ruby1.9`
 2. `sudo gem install dotgpg`
 
 ## Usage
+
+#### dotgpg init
 
 To get started run `dotgpg init`. Unless you've used GPG before, it will prompt you for a new passphrase. You should make this passphrase as [secure as your SSH passphrase](#security), i.e. 12-20 characters and not just letters.
 
@@ -34,23 +36,40 @@ Passphrase:
 Passphrase confirmation:
 ```
 
-You can now start creating files. For example if you're using dotenv, you might want to create `production.env.gpg`.
+#### dotgpg edit
+
+To create or edit files, just use `dotgpg edit`. I recommend you use the `.gpg` suffix so that other tools know what these files contain.
 
 ```
 $ dotgpg edit production.env.gpg
 [ opens your $EDITOR ]
 ```
 
-Reading these files is even easier:
+#### dotgpg cat
+
+To read encrypted files, `dotgpg cat` them.
 
 ```
 $ dotgpg cat prodution.env.gpg
 GPG passphrase for conrad.irwin@gmail.com:
 ```
 
-### Sharing dotgpg
+#### dotgpg add
 
-To add other people on your team to `dotgpg`, they first need to run `dotgpg key` to get a public key. It'll look something like this:
+To add other people to your team, you need to `dotgpg add` them. To run this command you need their public key (see `dotgpg key`).
+
+```
+$ dotgpg add
+Paste a public key, then hit <ctrl-d> twice.
+<paste>
+<ctrl-d><ctrl-d>
+```
+
+Once you've added them run `git commit` or let Dropbox work its syncing magic and they'll be able to access the files just like you.
+
+#### dotgpg key
+
+To be added to a dotgpg directory, you just need to send your GPG public key to someone who already has access. Getting the key is as easy as running `dotgpg key`. Then email/IM someone who already has access (you can see the list with `ls .gpg`).
 
 ```
 $ dotgpg key
@@ -68,17 +87,6 @@ leJCaaNJQBbIOj4QOjFWiZ8ATqLH9nkgawSwOV3xp0MWayCJ3MVnibt4CaI=
 -----END PGP PUBLIC KEY BLOCK-----
 ```
 
-They then send you this key, and you run:
-
-```
-$ dotgpg add
-Paste a public key, then hit <ctrl-d> twice.
-<paste>
-<ctrl-d><ctrl-d>
-```
-
-Finally you need to send them the new version of the directory. So either commit it to version control or wait for Dropbox to work its syncing magic. (Or send them a tarball if you're really old-school)
-
 ## Use without ruby
 
 The only person who really needs to use the `dotgpg` executable is the one responsible for adding and removing users from the directory. If you want to use `dotgpg` without requiring everyone to install ruby you can give them these instructions:
@@ -93,21 +101,32 @@ To edit the encrypted files, you'll want to use [vim-gnupg](https://github.com/j
 
 I'm not a security professional, so please [email me](conrad.irwin@gmail.com) if you have feedback on anything in this section.
 
-The files stored in `dotgpg` are guaranteed to be unreadable to an attacker provided:
+The files stored in `dotgpg` are unreadable to an attacker provided:
 
 1. A file encrypted by GnuPG cannot be decrypted except by someone with access to a recipient's private key.
 2. No-one has access to your GPG private key.
 
-The former assumption is reasonably strong. I'm willing to accept the tiny risk that there's a bug in GnuPG because if there is I'm likely to be top of the list of people to fry.
+The former assumption is reasonably strong. I'm willing to accept the tiny risk that there's a bug in GnuPG because it'll make headline news.
 
-The latter assumption is reasonably weak. GPG private keys are stored encrypted on your laptop, and the encryption key is based on a password.
+The latter assumption is reasonably weak. GPG private keys are stored encrypted on your laptop, and the encryption key is based on a passphrase.
 
-This means that if someone gets access to your laptop (or a backup) they can easily get your GPG key unless you've chosen a [https://howsecureismypassword.net/](secure password). I consider this acceptable risk because by default, SSH passwords are easier to crack than GPG passwords (though you can [fix that](http://martin.kleppmann.com/2013/05/24/improving-security-of-ssh-private-keys.html#conclusion_better_protection_for_your_ssh_private_keys)), and if they can decrypt your SSH key they can read the secrets directly off your production servers.
+This means that if someone gets access to your laptop (or a backup) they can easily get your GPG key unless you've chosen a [secure passphrase](https://howsecureismypassword.net/). I consider this acceptable risk because, by default, SSH passwords are easier to crack than GPG passphrases (GPG uses 65536 rounds of SHA-1 while SSH uses a [single round of MD5](http://martin.kleppmann.com/2013/05/24/improving-security-of-ssh-private-keys.html)) and if they can decrypt your SSH key they can read the secrets directly off your production servers.
 
-### Change password
+### Change passphrase
 
-If you didn't choose a secure password, you can change it with:
+If you didn't choose a secure passphrase, you can change it with:
 
 ```
 gpg --edit-keys conrad.irwin@gmail.com passwd
 ```
+
+If you can't remember your passphrase then you generate a new key with `dotgpg key -n` and ask someone on your team to overwrite your existing key with `dotgpg add -f`.
+
+### Revoking access
+
+Occasionally people leave, or stop needing access to dotgpg. To remove them use `dotgpg rm`.
+
+```
+dotgpg rm conrad.irwin@gmail.com
+```
+
