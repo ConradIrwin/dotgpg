@@ -85,10 +85,13 @@ EOF
     def get_passphrase
       passphrase = confirmation = nil
       until passphrase && passphrase == confirmation
-        until passphrase && passphrase.length > 0
+        times = 0
+        until passphrase && passphrase.length >= 10
+          times += 1
+          $stderr.puts "Passphrases should be secure! (>=10 chars)" if times >= 2
           passphrase = Dotgpg.read_passphrase("Passphrase: ")
         end
-        until confirmation && confirmation.length > 0
+        until confirmation && confirmation.length >= 10
           confirmation = Dotgpg.read_passphrase("Passphrase confirmation: ")
         end
       end

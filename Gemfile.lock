@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    dotenv-gpg (0.1)
+    dotenv-gpg (0.2)
       gpgme
       thor
 
