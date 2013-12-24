@@ -25,7 +25,7 @@ There are also instructions for [use without ruby](#use-without-ruby).
 
 ## Usage
 
-To get started run `dotgpg init`. Unless you've used GPG before, it will prompt you for a new passphrase. You should make this passphrase as [secure as your SSH passphrase](#Security), i.e. 12-20 characters and not just letters.
+To get started run `dotgpg init`. Unless you've used GPG before, it will prompt you for a new passphrase. You should make this passphrase as [secure as your SSH passphrase](#security), i.e. 12-20 characters and not just letters.
 
 ```
 $ dotgpg init
