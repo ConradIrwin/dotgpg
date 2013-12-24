@@ -1,13 +1,13 @@
 Gem::Specification.new do |gem|
-  gem.name = 'dotenv-gpg'
-  gem.version = '0.3'
+  gem.name = 'dotgpg'
+  gem.version = '0.4'
 
   gem.summary = 'gpg-encrypted backup for your dotenv files'
   gem.description = "Easy management of gpg-encrypted backup files"
 
   gem.authors = ['Conrad Irwin']
   gem.email = %w(conrad@bugsnag.com)
-  gem.homepage = 'http://github.com/ConradIrwin/dotenv-gpg'
+  gem.homepage = 'http://github.com/ConradIrwin/dotgpg'
 
   gem.license = 'MIT'
 
