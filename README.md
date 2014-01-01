@@ -1,13 +1,6 @@
-dotgpg is a tool for backing up and versioning your production secrets securely and easily.
+dotgpg is a tool for backing up and versioning your [production secrets](#deploying) or [shared passwords](#shared-passwords) securely and easily. ([Why?](#why))
 
-Production secrets are things like your cookie encryption keys, database passwords and AWS access keys. All of them have two things in common: your app needs them to runs and no-one else should be able to get to them.
-
-Most people do not look after their production secrets well. If you've got them in your source-code, or unencrypted in Dropbox or Google docs you are betraying your users trust. It's too easy for someone else to get at them.
-
-Dotgpg aims to be as easy to use as your current solution, but with added encryption. It manages a shared directory of GPG-encrypted files that you can check into git or put in Dropbox. When you deploy the secrets to your servers they are decrypted so that your app can boot without intervention.
-
-Getting started
----------------
+## Getting started
 
 If you're a ruby developer, you know the drill. Either `gem install dotgpg` or add `gem "dotgpg"` to your Gemfile.
 
@@ -41,7 +34,7 @@ Passphrase confirmation:
 To create or edit files, just use `dotgpg edit`. I recommend you use the `.gpg` suffix so that other tools know what these files contain.
 
 ```
-$ dotgpg edit production.env.gpg
+$ dotgpg edit production.gpg
 [ opens your $EDITOR ]
 ```
 
@@ -50,7 +43,7 @@ $ dotgpg edit production.env.gpg
 To read encrypted files, `dotgpg cat` them.
 
 ```
-$ dotgpg cat prodution.env.gpg
+$ dotgpg cat prodution.gpg
 GPG passphrase for conrad.irwin@gmail.com:
 ```
 
@@ -86,6 +79,48 @@ leJCaaNJQBbIOj4QOjFWiZ8ATqLH9nkgawSwOV3xp0MWayCJ3MVnibt4CaI=
 =Vzb6
 -----END PGP PUBLIC KEY BLOCK-----
 ```
+
+## Why
+
+Production secrets are the keys that your app needs to run. For example the session cookie encryption key, or the database password. These are critical to the running of your app, so it's essential to have a backup that is version controlled. Then if anything goes wrong, you can find the previous values and go back to running happily.
+
+Unfortunately it's also essential that your production secrets are kept secret. This means that traditional solutions to storing them, like putting them unenecrypted in git or in a shared google doc or in Dropbox are not sufficiently secure. Anyone who gets access to your source code, or to someone's Dropbox password, gets the keys to the kingdom for free.
+
+Dotgpg aims to be as easy to use as "just store them in git/Dropbox", but because it uses [gpg encryption](#security) is less vulnerable. If someone gets access to your source code, or someone's Google Apps account, they won't be able to get to your production database.
+
+## Deploying
+
+### dotenv
+
+I recommend using [dotenv](https://github.com/bkeepers/dotenv) for production secrets, then storing your production `.env` file as `config/dotgpg/production.gpg` in your web repository (after doing `dotgpg init config/dotgpg`).
+
+You can do this manually with ssh:
+
+```shell
+dotgpg cat config/dotgpg/production.gpg |\
+    ssh host1.example.com 'cat > /apps/website/shared/.env'
+```
+
+Or use Capistrano's `put` helper:
+
+```ruby
+file = `dotgpg cat config/dotgpg/production.gpg`
+put file, "/apps/website/shared/.env"
+```
+
+### Heroku
+
+We store a dump of `heroku config -s` in `dotgpg` with added comments. The dotgpg version is considered the master version, so if we make a mistake configuring Heroku (I've done that before...) we can restore easily.
+
+### Other
+
+You're kind of on your own for now :). Just store secrets in dotgpg and nowhere else, and you'll be fine!
+
+If you've got a setup that you think is common enough, please send a pull request to add docs.
+
+## Shared passwords
+
+You can also use `dotgpg` to share passwords for things that you log into manually with the rest of your team. This works particularly well if you put the `dotgpg` directory into Dropbox so that it syncs magically.
 
 ## Use without ruby
 
