@@ -134,7 +134,7 @@ To edit the encrypted files, you'll want to use [vim-gnupg](https://github.com/j
 
 ## Security
 
-I'm not a security professional, so please [email me](conrad.irwin@gmail.com) if you have feedback on anything in this section.
+I'm not a security professional, so please [email me](mailto:conrad.irwin@gmail.com) if you have feedback on anything in this section.
 
 The files stored in `dotgpg` are unreadable to an attacker provided:
 
