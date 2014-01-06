@@ -1,6 +1,6 @@
 Gem::Specification.new do |gem|
   gem.name = 'dotgpg'
-  gem.version = '0.4'
+  gem.version = '0.4.1'
 
   gem.summary = 'gpg-encrypted backup for your dotenv files'
   gem.description = "Easy management of gpg-encrypted backup files"
@@ -16,6 +16,9 @@ Gem::Specification.new do |gem|
 
   gem.add_development_dependency 'pry'
   gem.add_development_dependency 'pry-stack_explorer'
+
+  gem.cert_chain = `git ls-files certs`.split("\n")
+  gem.signing_key = File.expand_path("~/.ssh/dotgpg-private_key.pem")
 
   gem.executables = 'dotgpg'
   gem.files = `git ls-files`.split("\n")
