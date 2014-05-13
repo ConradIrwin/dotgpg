@@ -34,7 +34,7 @@ class Dotgpg
 
   def self.guess_editor
     %w(subl sublime-text sensible-editor editor mate nano vim vi open).detect do |editor|
-      system("which #{editor} > /dev/null 2>&1")
+      system("command -v #{editor} > /dev/null 2>&1")
     end
   end
 
