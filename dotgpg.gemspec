@@ -18,7 +18,8 @@ Gem::Specification.new do |gem|
   gem.add_development_dependency 'pry-stack_explorer'
 
   gem.cert_chain = `git ls-files certs`.split("\n")
-  gem.signing_key = File.expand_path("~/.ssh/dotgpg-private_key.pem")
+  private_key = "~/.ssh/dotgpg-private_key.pem"
+  gem.signing_key = File.expand_path(private_key) if File.exists?(private_key)
 
   gem.executables = 'dotgpg'
   gem.files = `git ls-files`.split("\n")
