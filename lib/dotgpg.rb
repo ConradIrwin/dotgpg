@@ -20,6 +20,7 @@ class Dotgpg
   # https://github.com/pry/pry/blob/master/LICENSE
   def self.editor
     configured = ENV["VISUAL"] || ENV["EDITOR"] || guess_editor
+    configured = configured.dup
     case configured
     when /^mate/, /^subl/
       configured << " -w"
