@@ -30,6 +30,11 @@ describe Dotgpg::Cli do
       assert_equal $fixture.join("create-3", ".gpg", "test@example.com").read, GPGME::Key.find(:secret).first.export(armor: true).to_s
     end
 
+    it "should not add a README if there is already one" do |variable|
+      FileUtils.touch 'README.md'
+      assert_not_equal File.read('README.md'), File.read($basic + 'README.md')
+    end
+
     it "should fail if the .gpg directory already exists" do
       FileUtils.mkdir_p $fixture + "create-4" + ".gpg"
       assert_fails(/\.gpg already exists/) do
