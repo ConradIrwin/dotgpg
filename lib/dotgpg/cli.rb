@@ -19,12 +19,14 @@ class Dotgpg
       key = Dotgpg::Key.secret_key(options[:email], options[:"new-key"])
 
       info "Initializing new dotgpg directory"
-      info "  #{directory}/README.md"
+      info "  #{directory}/README.md" unless File.exist? 'README.md'
       info "  #{directory}/.gpg/#{key.email}"
 
       FileUtils.mkdir_p(dir.dotgpg)
-      FileUtils.cp Pathname.new(__FILE__).dirname.join("template/README.md"), dir.path.join("README.md")
+      unless File.exist? 'README.md'      
+        FileUtils.cp Pathname.new(__FILE__).dirname.join("template/README.md"), dir.path.join("README.md")
       dir.add_key(key)
+      end
     end
 
     desc "key", "export your GPG public key in a format that `dotgpg add` will understand"
