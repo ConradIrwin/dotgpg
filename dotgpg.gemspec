@@ -1,6 +1,6 @@
 Gem::Specification.new do |gem|
   gem.name = 'dotgpg'
-  gem.version = '0.4.2'
+  gem.version = '0.5.0'
 
   gem.summary = 'gpg-encrypted backup for your dotenv files'
   gem.description = "Easy management of gpg-encrypted backup files"
