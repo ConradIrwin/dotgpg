@@ -53,6 +53,9 @@ class Dotgpg
     # @param [IO] output  The IO to write to
     # @return [Boolean]  false if decryption failed for an understandable reason
     def decrypt(path, output)
+      # make sure all keys are imported before we try to decrypt - otherwise we
+      # might fail with an invalid signature
+      known_keys
       File.open(path) do |f|
         signature = false
         temp = GPGME::Crypto.new.decrypt f, passphrase_callback: Dotgpg.method(:passfunc) do |s|
