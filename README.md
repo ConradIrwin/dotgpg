@@ -80,6 +80,10 @@ leJCaaNJQBbIOj4QOjFWiZ8ATqLH9nkgawSwOV3xp0MWayCJ3MVnibt4CaI=
 -----END PGP PUBLIC KEY BLOCK-----
 ```
 
+#### dotgpg merge
+
+See the 'Integration With Git' section below.
+
 ## Why
 
 Production secrets are the keys that your app needs to run. For example the session cookie encryption key, or the database password. These are critical to the running of your app, so it's essential to have a backup that is version controlled. Then if anything goes wrong, you can find the previous values and go back to running happily.
@@ -165,3 +169,25 @@ Occasionally people leave, or stop needing access to dotgpg. To remove them use 
 dotgpg rm conrad.irwin@gmail.com
 ```
 
+### Integration with git
+
+Encrypted files don't work well with many git workflows because they are (basically) binary files that appear to be text files. Because of this diff and merge may appear to work from git's point of view but will actually generate garbage according to GPG. It's possible to work around this:
+
+Add the following lines to your [git config](http://git-scm.com/docs/git-config):
+```
+[diff "gpg"]
+  textconv = gpg -d -q --batch --no-tty 2>/dev/null
+[merge "gpg"]
+  name = dotgpg merge driver
+  driver = "dotgpg merge %O %A %B"
+```
+(you may need to use `bundle exec dotgpg merge %O %A %B` depending on how you've installed dotgpg and ruby)
+
+Add the following lines to your [git attributes](http://git-scm.com/book/en/v2/Customizing-Git-Git-Attributes)
+```
+*.gpg diff=gpg merge=gpg
+```
+
+Now `git diff` will show you the diff of the decrypted content. `git merge` will decrypted your files, try to merge the decrypted text, and then encrypt the subsequent output. If there's a conflict the file will be marked as such but will still be a valid GPG file - the decrypted file will contain the text with the merge conflict markers in it.
+
+It's probably possible to adapt this to other VCS's.

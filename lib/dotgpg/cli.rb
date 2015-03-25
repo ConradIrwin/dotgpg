@@ -23,7 +23,7 @@ class Dotgpg
       info "  #{directory}/.gpg/#{key.email}"
 
       FileUtils.mkdir_p(dir.dotgpg)
-      unless File.exist? 'README.md'      
+      unless File.exist? 'README.md'
         FileUtils.cp Pathname.new(__FILE__).dirname.join("template/README.md"), dir.path.join("README.md")
       dir.add_key(key)
       end
@@ -120,6 +120,91 @@ class Dotgpg
 
     rescue GPGME::Error::BadPassphrase => e
       fail e.message
+    end
+
+    # only do this if we have diff3 installed
+    if system('which diff3 1>/dev/null 2>&1')
+      desc "merge MYFILE OLDFILE YOURFILE", "dotgpg-aware wrapper for merging via diff3(1)"
+      def merge(*files)
+        require 'find'
+        require 'digest'
+        require 'fileutils'
+
+        return if helped?
+        fail "usage: MYFILE OLDFILE YOURFILE" unless files.length == 3
+
+        # ok, we won't know which gpg directory was used for our files because
+        # the .merge_files are dumped in the root git dir. so we resort to ulginess
+        # - we hash OLDFILE, search for directories which contain a .gpg subdir
+        # and check the md5sums of all the files in said directory. if there's a
+        # match we have our dir
+        old_hash = Digest::SHA256.file(files[1]).hexdigest
+
+        # if file is nil DotGpg:Dir.closest throws an error. if it's just a blank
+        # string we get the "not in a dotgpg directory" message
+        file = ''
+
+        Find.find(ENV['PWD']) do |path|
+          if FileTest.directory?(path) && File.basename(path) == ".gpg"
+            # found a .gpg dir, check in the parent for our target file
+            dotgpg_dir = File.dirname path
+            gpg_files = ::Dir.glob(File.join dotgpg_dir, "*.gpg")
+            if matched = gpg_files.find { |f| old_hash == Digest::SHA256.file(f).hexdigest }
+              file = matched
+              break
+            end
+          end
+        end
+
+        dir = Dotgpg::Dir.closest(file)
+        fail "not in a dotgpg directory" unless dir
+
+        mine = Tempfile.open('mine')
+        old = Tempfile.open('old')
+        yours = Tempfile.open('yours')
+
+        begin
+          # decrypt all three of our files
+          dir.decrypt files[0], mine
+          dir.decrypt files[1], old
+          dir.decrypt files[2], yours
+
+          # flush our io
+          mine.flush
+          old.flush
+          yours.flush
+
+          # run our diff3
+          diff = `diff3 --label=mine --label=old --label=yours -m #{mine.path} #{old.path} #{yours.path}`
+          conflict = !$?.success?
+        ensure
+          # close and unlink our tempfiles
+          mine.close!
+          old.close!
+          yours.close!
+        end
+
+        # make a new stringio object out of our diff output
+        io = StringIO.new diff
+
+        #  create a new tempfile to write our merged file to
+        t = Tempfile.open('merged')
+        begin
+          # encrypt our diff3 output
+          dir.encrypt t, io
+          t.flush
+
+          # and copy that file back to OLDFILE (aka files[1]) since that's where
+          # git expects to find it
+          FileUtils.copy t.path, files[1]
+        end
+
+        # this is important - this exit value is what git uses to decide if there
+        # is a conflict or not
+        exit (conflict ? 1 : 0)
+      rescue GPGME::Error::BadPassphrase => e
+        fail e.message
+      end
     end
 
     private
