@@ -94,4 +94,17 @@ class Dotgpg
     io.puts(@passphrase)
     io.flush
   end
+
+  # this is a quick workaroundfor situations where finding a dotgpg directory is
+  # difficult.
+  #
+  # THIS WILL NOT VERIFY THE INPUT WAS SIGNED
+  # THIS WILL NOT VERIFY THE INPUT SIGNATURE IS VALID
+  # THIS WILL NOT VERIFY THE INPUT SIGNATURE IS TRUSTED
+  #
+  # see Dir#decrypt for the right way to read files.
+
+  def self.decrypt_without_validating_signatures(data)
+    GPGME::Crypto.new.decrypt data, passphrase_callback: Dotgpg.method(:passfunc)
+  end
 end
