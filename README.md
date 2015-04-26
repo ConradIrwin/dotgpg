@@ -176,12 +176,12 @@ Encrypted files don't work well with many git workflows because they are (basica
 Add the following lines to your [git config](http://git-scm.com/docs/git-config):
 ```
 [diff "gpg"]
-  textconv = gpg -d -q --batch --no-tty 2>/dev/null
+  textconv = dotgpg unsafe_cat
 [merge "gpg"]
   name = dotgpg merge driver
   driver = "dotgpg merge %O %A %B"
 ```
-(you may need to use `bundle exec dotgpg merge %O %A %B` depending on how you've installed dotgpg and ruby)
+(you may need to use `bundle exec dotgpg ...` depending on how you've installed dotgpg and ruby)
 
 Add the following lines to your [git attributes](http://git-scm.com/book/en/v2/Customizing-Git-Git-Attributes)
 ```
