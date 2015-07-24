@@ -25,8 +25,8 @@ class Dotgpg
       FileUtils.mkdir_p(dir.dotgpg)
       unless File.exist? 'README.md'
         FileUtils.cp Pathname.new(__FILE__).dirname.join("template/README.md"), dir.path.join("README.md")
-      dir.add_key(key)
       end
+      dir.add_key(key)
     end
 
     desc "key", "export your GPG public key in a format that `dotgpg add` will understand"
