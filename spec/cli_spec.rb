@@ -210,6 +210,21 @@ describe Dotgpg::Cli do
     end
   end
 
+  describe "create" do
+    before do
+      Dotgpg.passphrase = 'test'
+      @path = $fixture + rand.to_s.gsub(".", "")
+      Dotgpg::Cli.new.invoke(:init, [@path.to_s])
+      Dotgpg::Dir.new(@path).encrypt @path + "a", "Bad test\n"
+    end
+
+    it "creates a new encrypted file from command line input" do
+      path = (@path + "a").to_s
+      @dotgpg.send(:create, path, 'Some test data here')
+      expect {Dotgpg::Dir.new(@path).decrypt(path, $stdout)}.to output('Some test data here').to_stdout
+    end
+  end
+
   describe "edit" do
     before do
       Dotgpg.passphrase = 'test'

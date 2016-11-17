@@ -108,6 +108,19 @@ class Dotgpg
       end
     end
 
+    desc "create FILE DATA", "create an encrypted file with contents DATA"
+    def create(file, data)
+      return if helped?
+      files = [file]
+      dir = Dotgpg::Dir.closest(*files)
+      fail "not in a dotgpg directory" unless dir
+
+      dir.encrypt file, data
+
+    rescue GPGME::Error::BadPassphrase => e
+      fail e.message
+    end
+
     desc "edit FILES...", "edit and re-encrypt files"
     def edit(*files)
       return if helped?
