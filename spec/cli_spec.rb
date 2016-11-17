@@ -216,12 +216,20 @@ describe Dotgpg::Cli do
       @path = $fixture + rand.to_s.gsub(".", "")
       Dotgpg::Cli.new.invoke(:init, [@path.to_s])
       Dotgpg::Dir.new(@path).encrypt @path + "a", "Bad test\n"
+      allow(STDIN).to receive(:read).and_return('Some test data here')
+      allow(STDIN).to receive(:tty?).and_return(false)
     end
 
     it "creates a new encrypted file from command line input" do
       path = (@path + "a").to_s
-      @dotgpg.send(:create, path, 'Some test data here')
+      @dotgpg.send(:create, path)
       expect {Dotgpg::Dir.new(@path).decrypt(path, $stdout)}.to output('Some test data here').to_stdout
+    end
+
+    it "should fail if no input given" do
+      path = (@path + "b").to_s
+      allow(STDIN).to receive(:tty?).and_return(true)
+      expect { @dotgpg.send(:create, path) }.to raise_error("No input received")
     end
   end
 

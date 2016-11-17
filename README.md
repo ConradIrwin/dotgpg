@@ -40,10 +40,10 @@ $ dotgpg edit production.gpg
 
 #### dotgpg create
 
-To create an encrypted file from command line input, use `dotgpg create`. I recommend you use the `.gpg` suffix so that other tools know what these files contain.
+To create an encrypted file from piped input, use `dotgpg create`. I recommend you use the `.gpg` suffix so that other tools know what these files contain.
 
 ```
-$ dotgpg create production.gpg "The content that you would like encrypted"
+$ echo foo | dotgpg create bar.gpg
 
 ```
 
