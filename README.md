@@ -38,6 +38,15 @@ $ dotgpg edit production.gpg
 [ opens your $EDITOR ]
 ```
 
+#### dotgpg create
+
+To create an encrypted file from piped input, use `dotgpg create`. I recommend you use the `.gpg` suffix so that other tools know what these files contain.
+
+```
+$ echo foo | dotgpg create bar.gpg
+
+```
+
 #### dotgpg cat
 
 To read encrypted files, `dotgpg cat` them.
