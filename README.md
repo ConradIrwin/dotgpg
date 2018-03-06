@@ -52,7 +52,7 @@ $ echo foo | dotgpg create bar.gpg
 To read encrypted files, `dotgpg cat` them.
 
 ```
-$ dotgpg cat prodution.gpg
+$ dotgpg cat production.gpg
 GPG passphrase for conrad.irwin@gmail.com:
 ```
 
