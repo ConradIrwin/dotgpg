@@ -16,6 +16,11 @@ There are also instructions for [use without ruby](#use-without-ruby).
 1. `sudo apt-get install ruby1.9`
 2. `sudo gem install dotgpg`
 
+#### RedHat/CentOS
+
+1. `sudo yum install ruby ruby-devel`
+2. `sudo gem install dotgpg`
+
 ## Usage
 
 #### dotgpg init
